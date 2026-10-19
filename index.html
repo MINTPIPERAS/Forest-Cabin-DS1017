@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1212" />
+  <meta name="description" content="森林深处的一座木屋，暮色、薄雾与一盏暖灯。一个可交互的 3D 电影感林间场景。" />
+  <title>林间灯暖 · Mistwood Cabin</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1514'/%3E%3Cpath d='M32 51V28M32 38c-8 0-14-5-14-13 8 0 14 5 14 13Zm0-5c8 0 14-5 14-13-8 0-14 5-14 13Z' fill='none' stroke='%23d8be8c' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main id="scene-root" aria-label="森林中的木屋 3D 场景">
+    <div id="canvas-host"></div>
+
+    <div class="atmosphere" aria-hidden="true">
+      <div class="vignette"></div>
+      <div class="top-scrim"></div>
+      <div class="bottom-scrim"></div>
+      <div class="film-frame"></div>
+      <div class="grain"></div>
+    </div>
+
+    <header class="masthead hud">
+      <a class="brand" href="#" aria-label="Mistwood 林间小屋">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 48 48" fill="none">
+            <path d="M24 40V19" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            <path d="M24 29c-6.5 0-11-4.1-11-10.2 6.4 0 11 4 11 10.2Z" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M24 23.5c6.3 0 10.8-4 10.8-9.9-6.2 0-10.8 3.9-10.8 9.9Z" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M18 40h12" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="brand-copy">
+          <span class="brand-name">Mistwood</span>
+          <span class="brand-sub">林间小屋 · Nº 09</span>
+        </span>
+      </a>
+      <div class="status" aria-label="场景天气与时间">
+        <span class="status-line">
+          <span class="status-dot"></span>
+          <span id="status-time">18:42</span>
+          <span class="status-divider"></span>
+          <span>AUTUMN 2026</span>
+        </span>
+        <span class="status-weather" id="status-weather">薄雾 · 西南风 2 级 · 7°C</span>
+      </div>
+    </header>
+
+    <section class="intro-copy hud" aria-label="场景信息">
+      <p class="eyebrow"><span></span> A quieter kind of evening</p>
+      <h1>林间<span class="accent">灯暖</span></h1>
+      <p class="tagline" id="scene-tagline">暮色漫过松针，木屋里煨着一盏黄昏。</p>
+      <div class="interaction-note">
+        <span class="note-line"></span>
+        <span>拖动环视</span>
+        <i></i>
+        <span>滚轮靠近</span>
+      </div>
+    </section>
+
+    <div class="chapter hud" aria-hidden="true">
+      <span>01</span>
+      <span class="chapter-line"></span>
+      <span>THE CABIN</span>
+    </div>
+
+    <nav class="controls hud" aria-label="场景控制">
+      <button id="sound-toggle" class="control-button" type="button" aria-label="开启环境声" data-tooltip="环境声 · 关" aria-pressed="false">
+        <svg class="icon icon-sound-off" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4.5 9.5v5h3.2l4.3 3.4V6.1L7.7 9.5H4.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="m15.2 9.2 4.3 5.6M19.5 9.2l-4.3 5.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <svg class="icon icon-sound-on" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4.5 9.5v5h3.2l4.3 3.4V6.1L7.7 9.5H4.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M15 9c1.8 1.7 1.8 4.3 0 6M17.6 6.7c3.4 3.1 3.4 7.5 0 10.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        <span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      </button>
+
+      <button id="night-toggle" class="control-button" type="button" aria-label="切换到深夜" data-tooltip="点亮夜色" aria-pressed="false">
+        <svg class="icon icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M19 15.6A7.6 7.6 0 0 1 8.4 5a8.2 8.2 0 1 0 10.6 10.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+          <path d="M17.8 4.2v3.1M19.3 5.8h-3.1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+        </svg>
+        <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.7" stroke="currentColor" stroke-width="1.3"/>
+          <path d="M12 3.2v2M12 18.8v2M3.2 12h2M18.8 12h2M5.8 5.8l1.4 1.4M16.8 16.8l1.4 1.4M18.2 5.8l-1.4 1.4M7.2 16.8l-1.4 1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+
+      <button id="fullscreen-toggle" class="control-button" type="button" aria-label="进入全屏" data-tooltip="全屏">
+        <svg class="icon icon-expand" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <svg class="icon icon-collapse" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+    </nav>
+
+    <div class="location hud" aria-hidden="true">
+      <span>48° 12′ N</span>
+      <span class="location-sep"></span>
+      <span>121° 47′ E</span>
+    </div>
+  </main>
+
+  <div id="loader" aria-live="polite">
+    <div class="loader-inner">
+      <div class="loader-emblem">
+        <svg viewBox="0 0 64 64" fill="none">
+          <path d="M32 52V25" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <path d="M32 38c-8.6 0-14.6-5.5-14.6-13.7 8.5 0 14.6 5.4 14.6 13.7Z" stroke="currentColor" stroke-width="1.2"/>
+          <path d="M32 30.5c8.3 0 14.3-5.3 14.3-13.1-8.2 0-14.3 5.2-14.3 13.1Z" stroke="currentColor" stroke-width="1.2"/>
+        </svg>
+      </div>
+      <p class="loader-kicker">MISTWOOD · Nº 09</p>
+      <p class="loader-title">林间灯暖</p>
+      <div class="loader-progress"><span></span></div>
+      <p class="loader-status">正在穿过雾林，点亮灯火…</p>
+    </div>
+    <p class="loader-foot">A FILM-LIKE FOREST STUDY · BEST WITH SOUND</p>
+  </div>
+
+  <noscript>
+    <div class="no-script">这个场景需要启用 JavaScript 才能渲染。</div>
+  </noscript>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three/three.module.js",
+        "three/addons/": "./vendor/three/addons/"
+      }
+    }
+  </script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
