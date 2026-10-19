@@ -130,6 +130,28 @@
     <div class="no-script">这个场景需要启用 JavaScript 才能渲染。</div>
   </noscript>
 
+  <script>
+    (function () {
+      function report(message, stack) {
+        try {
+          sessionStorage.setItem('mistwood-error', message + '\n' + (stack || ''));
+        } catch (e) {}
+        const status = document.querySelector('.loader-status');
+        if (status) {
+          status.textContent = '场景载入出错：' + message;
+          status.style.color = 'rgba(231, 197, 155, 0.85)';
+        }
+      }
+      window.addEventListener('error', (event) => {
+        report(event.message || '未知错误', event.error && event.error.stack);
+        console.error('[mistwood]', event.error || event.message);
+      });
+      window.addEventListener('unhandledrejection', (event) => {
+        report(String(event.reason && event.reason.message || event.reason), event.reason && event.reason.stack);
+      });
+      window.__mistwoodReport = report;
+    })();
+  </script>
   <script type="importmap">
     {
       "imports": {
@@ -138,6 +160,6 @@
       }
     }
   </script>
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/main.js" onerror="window.__mistwoodReport && window.__mistwoodReport('模块加载失败: ' + this.src)"></script>
 </body>
 </html>

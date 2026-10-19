@@ -430,19 +430,41 @@ class SceneApp {
 }
 
 async function boot() {
+  // Background tabs can pause requestAnimationFrame indefinitely, so the
+  // startup sequence must also be able to advance on a timer.
+  const nextTick = () =>
+    new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+      requestAnimationFrame(finish);
+      setTimeout(finish, 90);
+    });
+
   // Let the loader and the first paint exist before the synchronous world build.
-  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  await nextTick();
+  await nextTick();
   await new Promise((resolve) => setTimeout(resolve, 220));
 
   const app = new SceneApp();
+  window.__bootStage = 'constructed';
   try {
     app.init();
+    window.__bootStage = 'initialised';
     // Compile materials and bake the first shadow map before lifting the veil.
     app.composer.render();
     if (document.fonts?.ready) {
       await Promise.race([document.fonts.ready, new Promise((resolve) => setTimeout(resolve, 1200))]);
     }
     await new Promise((resolve) => setTimeout(resolve, 520));
+    // requestAnimationFrame may be throttled in a background tab; the loader
+    // should still lift once the world is ready.
+    setTimeout(() => {
+      if (!app.ready) app.reveal();
+    }, 400);
     requestAnimationFrame(() => app.reveal());
   } catch (error) {
     console.error(error);

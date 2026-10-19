@@ -921,6 +921,13 @@ function createTrees(scene, timeUniform, pathSamples) {
 
   // Distant/understory shrubs and saplings.
   const shrubBatch = new InstanceBatch();
+  const shrubMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.94,
+    flatShading: false,
+    side: THREE.DoubleSide,
+    envMapIntensity: 0.14,
+  });
   for (let i = 0; i < 90; i++) {
     const a = random() * Math.PI * 2;
     const r = 9 + random() * 25;
@@ -928,6 +935,9 @@ function createTrees(scene, timeUniform, pathSamples) {
     const z = Math.sin(a) * r;
     if (Math.abs(x) < 5.1 && Math.abs(z) < 4.3) continue;
     if (z > 4 && z < 22 && Math.abs(x - z * 0.47) < 2.4) continue;
+    // Keep the lit lantern post clear: strong warm light turns these into
+    // faceted shards at close range.
+    if (Math.hypot(x + 2.78, z - 12.15) < 5.0) continue;
     const y = groundHeight(x, z);
     const count = 3 + Math.floor(random() * 4);
     for (let n = 0; n < count; n++) {
@@ -936,8 +946,8 @@ function createTrees(scene, timeUniform, pathSamples) {
         new THREE.Euler(random() * 0.4, random() * 6.2, random() * 0.4)
       );
       const c = random() < 0.16
-        ? new THREE.Color().setHSL(0.11 + random() * 0.04, 0.32, 0.25 + random() * 0.08)
-        : new THREE.Color().setHSL(0.26 + random() * 0.08, 0.2 + random() * 0.12, 0.18 + random() * 0.1);
+        ? new THREE.Color().setHSL(0.11 + random() * 0.04, 0.3, 0.16 + random() * 0.06)
+        : new THREE.Color().setHSL(0.26 + random() * 0.08, 0.18 + random() * 0.1, 0.13 + random() * 0.07);
       shrubBatch.add(
         composeMatrix(
           new THREE.Vector3(x + (random() - 0.5) * 1.5, y + s * 0.45, z + (random() - 0.5) * 1.5),
@@ -948,7 +958,7 @@ function createTrees(scene, timeUniform, pathSamples) {
       );
     }
   }
-  group.add(shrubBatch.build(leafGeo, leafMat, { name: 'understory' }));
+  group.add(shrubBatch.build(leafGeo, shrubMat, { name: 'understory' }));
 
   const leafClusters = leafBatch.build(leafGeo, leafMat, { name: 'canopy-leaves' });
   const leafCards = cardBatch.build(leafCardGeo, leafCardMat, { castShadow: false, name: 'canopy-leaf-cards' });

@@ -9,8 +9,10 @@ import {
   makeWindowTexture,
   makeGlowTexture,
   createLeafClusterGeometry,
+  createFernGeometry,
   makeStoneGeometry,
   mergeStaticMeshes,
+  groundHeight,
 } from './utils.js';
 
 const DIM = {
@@ -387,37 +389,36 @@ function createPostLantern(mats) {
 }
 
 function addPlants(group, mats, random) {
-  const leafGeo = createLeafClusterGeometry(88);
-  const leafMat = mats.leaf.clone();
-  leafMat.color.set(0x2f4329);
-  leafMat.side = THREE.DoubleSide;
-  const clumps = 24;
-  const foliage = new THREE.InstancedMesh(leafGeo, leafMat, clumps * 4);
+  const fernGeo = createFernGeometry(88);
+  const fernMat = mats.leaf.clone();
+  fernMat.color.set(0xffffff);
+  fernMat.vertexColors = true;
+  fernMat.side = THREE.DoubleSide;
+  const clumps = 26;
+  const foliage = new THREE.InstancedMesh(fernGeo, fernMat, clumps);
   const matrix = new THREE.Matrix4();
   const color = new THREE.Color();
   let idx = 0;
   for (let c = 0; c < clumps; c++) {
     const angle = random() * Math.PI * 2;
-    const radius = 4.5 + random() * 1.5;
+    const radius = 4.6 + random() * 1.6;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius * 0.72;
     // Keep the approach and windows clear.
     if (z > 3.8 && Math.abs(x) < 2.0) continue;
-    for (let i = 0; i < 4; i++) {
-      const s = 0.22 + random() * 0.28;
-      matrix.compose(
-        new THREE.Vector3(x + (random() - 0.5) * 0.55, 0.28 + random() * 0.35, z + (random() - 0.5) * 0.4),
-        new THREE.Quaternion().setFromEuler(new THREE.Euler(random() * 0.5, random() * 6.2, random() * 0.4)),
-        new THREE.Vector3(s, s * 0.65, s)
-      );
-      foliage.setMatrixAt(idx, matrix);
-      if (random() < 0.18) {
-        foliage.setColorAt(idx, color.setHSL(0.1 + random() * 0.04, 0.34, 0.24 + random() * 0.12));
-      } else {
-        foliage.setColorAt(idx, color.setHSL(0.22 + random() * 0.08, 0.2 + random() * 0.08, 0.18 + random() * 0.13));
-      }
-      idx++;
+    const s = 0.75 + random() * 0.7;
+    matrix.compose(
+      new THREE.Vector3(x, groundHeight(x, z) - groundHeight(0, 0) - 0.02, z),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, random() * 6.2, 0)),
+      new THREE.Vector3(s, s * (0.85 + random() * 0.35), s)
+    );
+    foliage.setMatrixAt(idx, matrix);
+    if (random() < 0.18) {
+      foliage.setColorAt(idx, color.setHSL(0.1 + random() * 0.04, 0.34, 0.26 + random() * 0.1));
+    } else {
+      foliage.setColorAt(idx, color.setHSL(0.22 + random() * 0.08, 0.2 + random() * 0.08, 0.2 + random() * 0.12));
     }
+    idx++;
   }
   foliage.count = idx;
   foliage.castShadow = true;
@@ -973,7 +974,7 @@ export function createCabin(renderer) {
   group.add(porchLight);
   lights.porch = porchLight;
 
-  const lanternLight = new THREE.PointLight(0xff9a4f, 16, 14, 2);
+  const lanternLight = new THREE.PointLight(0xff9a4f, 9.5, 12, 2);
   lanternLight.position.copy(postLantern.lightPosition).add(postLantern.group.position);
   lanternLight.position.y += 0.8;
   group.add(lanternLight);

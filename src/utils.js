@@ -66,7 +66,7 @@ export function groundHeight(x, z) {
   const small = (fbm(x * 0.11 + 2.0, z * 0.11 + 8.0, 3) - 0.5) * 0.34;
   const dist = Math.hypot(x, z + 1.5);
   const clearing = smoothstep(8.5, 28.0, dist);
-  const farRise = smoothstep(24, 62, dist) * 1.8;
+  const farRise = smoothstep(24, 62, dist) * 3.4 + smoothstep(55, 110, dist) * 6.0;
   return (broad + small) * (0.16 + clearing * 0.84) + farRise;
 }
 
@@ -627,7 +627,7 @@ export function makeFogSheetTexture() {
     for (let i = 0; i < 13; i++) {
       const x = w * (0.2 + Math.random() * 0.6);
       const y = h * (0.35 + Math.random() * 0.3);
-      const r = 50 + Math.random() * 110;
+      const r = 40 + Math.random() * 70;
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
       g.addColorStop(0, 'rgba(205,218,215,.12)');
       g.addColorStop(0.55, 'rgba(190,205,203,.05)');
@@ -635,6 +635,15 @@ export function makeFogSheetTexture() {
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
     }
+    // Fade the canvas borders to zero so the sprite never shows a hard rectangle.
+    ctx.globalCompositeOperation = 'destination-in';
+    const mask = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    mask.addColorStop(0, 'rgba(0,0,0,1)');
+    mask.addColorStop(0.62, 'rgba(0,0,0,1)');
+    mask.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = mask;
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'source-over';
   });
 }
 
@@ -717,47 +726,48 @@ export function createFernGeometry(seed = 8) {
   const positions = [];
   const indices = [];
   const colors = [];
-  const count = 7;
+  const count = 9;
   const leafColor = new THREE.Color();
   for (let f = 0; f < count; f++) {
     const angle = (f / count) * Math.PI * 2 + random() * 0.4;
-    const length = 0.72 + random() * 0.7;
-    const segments = 8;
+    const length = 0.55 + random() * 0.45;
+    const segments = 13;
     const base = positions.length / 3;
     for (let i = 0; i <= segments; i++) {
       const t = i / segments;
-      const stemR = 0.012;
+      const stemR = 0.009;
       const x = Math.cos(angle) * length * t;
       const z = Math.sin(angle) * length * t;
-      const y = Math.sin(t * Math.PI * 0.82) * 0.55 + 0.02;
+      const y = Math.sin(t * Math.PI * 0.82) * 0.4 + 0.02;
       const sideX = Math.cos(angle + Math.PI / 2) * stemR;
       const sideZ = Math.sin(angle + Math.PI / 2) * stemR;
       positions.push(x - sideX, y, z - sideZ, x + sideX, y, z + sideZ);
-      const green = leafColor.setHSL(0.25 + random() * 0.04, 0.24, 0.22 + t * 0.1);
+      const green = leafColor.setHSL(0.25 + random() * 0.04, 0.24, 0.2 + t * 0.1);
       colors.push(green.r, green.g, green.b, green.r, green.g, green.b);
       if (i < segments) {
         const a = base + i * 2;
         indices.push(a, a + 2, a + 1, a + 1, a + 2, a + 3);
       }
     }
-    // Leaflets
+    // Leaflets: short, dense and slightly cupped so they read as fronds up close.
     for (let i = 1; i < segments; i++) {
       const t = i / segments;
       const x = Math.cos(angle) * length * t;
       const z = Math.sin(angle) * length * t;
-      const y = Math.sin(t * Math.PI * 0.82) * 0.55 + 0.02;
-      const size = (1 - t * 0.65) * (0.12 + random() * 0.06);
+      const y = Math.sin(t * Math.PI * 0.82) * 0.4 + 0.02;
+      const size = (1 - t * 0.55) * (0.055 + random() * 0.035);
       const perp = angle + Math.PI / 2;
       for (const side of [-1, 1]) {
         const px = x + Math.cos(perp) * size * side;
         const pz = z + Math.sin(perp) * size * side;
-        const bx = x + Math.cos(angle) * size * 0.25;
-        const bz = z + Math.sin(angle) * size * 0.25;
-        const ix = x - Math.cos(angle) * size * 0.22;
-        const iz = z - Math.sin(angle) * size * 0.22;
+        const bx = x + Math.cos(angle) * size * 0.4;
+        const bz = z + Math.sin(angle) * size * 0.4;
+        const ix = x - Math.cos(angle) * size * 0.35;
+        const iz = z - Math.sin(angle) * size * 0.35;
+        const lift = 0.012 + size * 0.35;
         const baseIndex = positions.length / 3;
-        positions.push(bx, y, bz, px, y + 0.03, pz, ix, y, iz);
-        const c = leafColor.setHSL(0.25 + random() * 0.035, 0.3, 0.2 + random() * 0.11);
+        positions.push(bx, y + 0.006, bz, px, y + lift, pz, ix, y, iz);
+        const c = leafColor.setHSL(0.25 + random() * 0.035, 0.3, 0.18 + random() * 0.1);
         colors.push(c.r, c.g, c.b, c.r, c.g, c.b, c.r, c.g, c.b);
         indices.push(baseIndex, baseIndex + 1, baseIndex + 2);
       }

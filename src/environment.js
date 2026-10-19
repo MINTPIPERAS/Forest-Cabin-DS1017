@@ -26,6 +26,7 @@ const SKY_FRAGMENT = /* glsl */ `
   uniform float uNight;
   uniform vec3 uMoonDir;
   uniform vec3 uSunDir;
+  uniform vec3 uFogColor;
   varying vec3 vDirection;
 
   float hash21(vec2 p) {
@@ -71,8 +72,8 @@ const SKY_FRAGMENT = /* glsl */ `
     vec3 zenithNight = vec3(0.008, 0.017, 0.033);
     vec3 midDusk = vec3(0.22, 0.32, 0.35);
     vec3 midNight = vec3(0.032, 0.062, 0.091);
-    vec3 horizonDusk = vec3(0.49, 0.48, 0.40);
-    vec3 horizonNight = vec3(0.075, 0.125, 0.145);
+    vec3 horizonDusk = vec3(0.27, 0.29, 0.25);
+    vec3 horizonNight = vec3(0.055, 0.09, 0.105);
 
     vec3 zenith = mix(zenithDusk, zenithNight, uNight);
     vec3 mid = mix(midDusk, midNight, uNight);
@@ -120,6 +121,12 @@ const SKY_FRAGMENT = /* glsl */ `
     // Slight dithering prevents colour banding in the enormous sky gradient.
     float dither = (hash21(gl_FragCoord.xy) - 0.5) / 255.0;
     color += dither;
+
+    // Near and below the horizon the sky dissolves into the same haze as the
+    // fog, so the far edge of the terrain never shows as a pale band.
+    float haze = smoothstep(0.26, -0.06, dir.y);
+    color = mix(color, uFogColor, haze * 0.96);
+
     gl_FragColor = vec4(color, 1.0);
   }
 `;
@@ -131,6 +138,7 @@ function createSky(scene) {
       uNight: { value: 0 },
       uMoonDir: { value: new THREE.Vector3(0.33, 0.58, -0.73).normalize() },
       uSunDir: { value: new THREE.Vector3(-0.72, 0.12, -0.59).normalize() },
+      uFogColor: { value: new THREE.Color(0x5b7071) },
     },
     vertexShader: SKY_VERTEX,
     fragmentShader: SKY_FRAGMENT,
@@ -187,6 +195,27 @@ function createTerrain(scene) {
   ground.castShadow = false;
   ground.name = 'forest-floor';
   scene.add(ground);
+
+  // A very low-detail apron hides the horizon seam beyond the detailed terrain.
+  const farGeometry = new THREE.PlaneGeometry(700, 700, 24, 24);
+  farGeometry.rotateX(-Math.PI / 2);
+  const farPositions = farGeometry.attributes.position;
+  for (let i = 0; i < farPositions.count; i++) {
+    const x = farPositions.getX(i);
+    const z = farPositions.getZ(i);
+    farPositions.setY(i, groundHeight(x, z) - 0.6);
+  }
+  farGeometry.computeVertexNormals();
+  const farMaterial = new THREE.MeshStandardMaterial({
+    color: 0x28301f,
+    roughness: 1,
+    metalness: 0,
+    envMapIntensity: 0.06,
+  });
+  const farGround = new THREE.Mesh(farGeometry, farMaterial);
+  farGround.receiveShadow = false;
+  farGround.name = 'far-forest-floor';
+  scene.add(farGround);
   return ground;
 }
 
@@ -447,6 +476,7 @@ export function createEnvironment(scene, renderer) {
     sky.position.copy(scene.userData.camera.position);
     sky.material.uniforms.uTime.value = time;
     sky.material.uniforms.uNight.value = state.night;
+    sky.material.uniforms.uFogColor.value.copy(scene.fog.color);
 
     for (const sprite of mist.sprites) {
       sprite.position.x = sprite.userData.baseX + Math.sin(time * sprite.userData.speed + sprite.userData.phase) * 2.4;
