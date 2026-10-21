@@ -14,6 +14,8 @@ import {
   createGroundLeafGeometry,
   makeStoneGeometry,
   mergeStaticMeshes,
+  lakeField,
+  enableSnow,
 } from './utils.js';
 
 /* ------------------------------------------------------------------ *
@@ -175,6 +177,10 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
     return Math.sqrt(best);
   }
 
+  function blockedByLake(x, z, margin = 1.24) {
+    return lakeField(x, z) < margin;
+  }
+
   // Fine grass tufts.
   const grassGeo = createBladeGeometry();
   const grassMat = new THREE.MeshStandardMaterial({
@@ -197,6 +203,7 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
     if (Math.abs(x) < 5.1 && Math.abs(z) < 4.3) continue;
     const pathDist = distanceToPath(x, z);
     if (pathDist < 1.1) continue;
+    if (blockedByLake(x, z, 1.3)) continue;
     if (z > 4 && z < 22 && Math.abs(x - z * 0.47) < 2.2) continue;
     const y = groundHeight(x, z);
     let s = 0.42 + random() * 0.64;
@@ -239,6 +246,7 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
       const x = ax + Math.cos(a) * r;
       const z = az + Math.sin(a) * r;
       if (distanceToPath(x, z) < 0.9) continue;
+      if (blockedByLake(x, z, 1.34)) continue;
       const p = new THREE.Vector3(x, groundHeight(x, z) - 0.02, z);
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, random() * Math.PI * 2, 0));
       const s = 0.65 + random() * 0.75;
@@ -257,6 +265,7 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
     const z = Math.sin(a) * r;
     if (distanceToPath(x, z) < 1.0) continue;
     if (Math.abs(x) < 5 && Math.abs(z) < 4.1) continue;
+    if (blockedByLake(x, z, 1.32)) continue;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, random() * Math.PI * 2, 0));
     const s = 0.4 + random() * 0.5;
     fernBatch.add(
@@ -294,6 +303,7 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
     const z = Math.sin(a) * r;
     if (distanceToPath(x, z) < 1.6) continue;
     if (Math.abs(x) < 5 && Math.abs(z) < 4.1) continue;
+    if (blockedByLake(x, z, 1.28)) continue;
     const s = 0.2 + random() * 0.55;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(random() * 0.5, random() * 6, random() * 0.5));
     rockBatch.add(
@@ -357,6 +367,7 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
       z = Math.sin(a) * r;
     }
     if (Math.abs(x) < 4.5 && Math.abs(z) < 3.9) continue;
+    if (blockedByLake(x, z, 1.24)) continue;
     const s = 0.1 + random() * 0.16;
     const q = new THREE.Quaternion().setFromEuler(
       new THREE.Euler((random() - 0.5) * 0.22, random() * Math.PI * 2, (random() - 0.5) * 0.2)
@@ -391,7 +402,7 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
     { x: -7.0, z: 12.2, rot: 0.55, len: 3.4, r: 0.3 },
     { x: 11.8, z: 0.8, rot: 1.2, len: 2.8, r: 0.25 },
     { x: -10.4, z: -1.0, rot: -0.4, len: 4.0, r: 0.34 },
-    { x: 7.4, z: 13.2, rot: 2.4, len: 2.5, r: 0.2 },
+    { x: 6.2, z: 11.4, rot: 2.4, len: 2.5, r: 0.2 },
   ];
   const logGroups = [];
   for (const spec of logSpecs) {
@@ -469,11 +480,12 @@ function createForestFloorDetails(scene, pathSamples, timeUniform) {
 /* ------------------------------------------------------------------ *
  * Trees
  * ------------------------------------------------------------------ */
-
 function createTrees(scene, timeUniform, pathSamples) {
   const random = mulberry32(8721);
   const group = new THREE.Group();
   group.name = 'forest';
+
+  const blockedByLake = (x, z, margin = 1.45) => lakeField(x, z) < margin;
 
   const barkMap = makeWoodTexture(24, 'dark');
   barkMap.repeat.set(1.3, 4.5);
@@ -579,7 +591,10 @@ function createTrees(scene, timeUniform, pathSamples) {
   function blockedForTree(x, z) {
     if (Math.abs(x) < 5.6 && Math.abs(z) < 4.9) return true;
     if (Math.hypot(x - 9, z - 19) < 4.2) return true;
-    if (z > 0 && z < 25 && Math.abs(x - z * 0.47) < 3.9) return true;
+    // Keep the lake and a generous shoreline clearing free of trunks.
+    if (lakeField(x, z) < 1.55) return true;
+    // Keep the raised camera position clear so its view is never inside a crown.
+    if (Math.hypot(x - 9.8, z - 35.0) < 11) return true;
     for (const p of pathSamples) {
       if ((p.x - x) * (p.x - x) + (p.z - z) * (p.z - z) < 3.4 * 3.4) return true;
     }
@@ -605,20 +620,42 @@ function createTrees(scene, timeUniform, pathSamples) {
       far: Math.hypot(x, z) > 34,
     });
   }
-  // Distant wall of trees.
-  for (let i = 0; i < 62; i++) {
+  // Far treeline: thinned out (they sit deep in fog and the extra instances
+  // cost triangles without adding visible detail).
+  for (let i = 0; i < 88; i++) {
     const angle = random() * Math.PI * 2;
-    const radius = 37 + random() * 30;
+    const radius = 34 + random() * 34;
     const x = Math.cos(angle) * radius;
     const z = Math.sin(angle) * radius - 3;
     if (Math.abs(x - z * 0.47) < 6 && z > 0) continue;
+    // Leave the camera's raised vantage and its sightline to the cabin open.
+    if (Math.hypot(x - 9.8, z - 35.0) < 15) continue;
     pineData.push({
       x,
       z,
       h: 16 + random() * 16,
       r: 0.3 + random() * 0.2,
       seed: random() * 1000,
-      far: true,
+      far: false,
+    });
+  }
+
+  // The far bank opposite the cabin reads as an open field; fill it with a
+  // denser stand so the lake is enclosed by forest rather than empty lawn.
+  for (let i = 0; i < 70; i++) {
+    const angle = -1.15 + random() * 1.5;
+    const radius = 24 + random() * 26;
+    const x = Math.cos(angle) * radius * 0.9;
+    const z = Math.sin(angle) * radius - 2;
+    if (lakeField(x, z) < 1.45) continue;
+    if (Math.hypot(x - 9.8, z - 35.0) < 14) continue;
+    pineData.push({
+      x,
+      z,
+      h: 14 + random() * 13,
+      r: 0.24 + random() * 0.16,
+      seed: random() * 1000,
+      far: false,
     });
   }
 
@@ -639,13 +676,15 @@ function createTrees(scene, timeUniform, pathSamples) {
     );
 
     const branchStart = pine.h * (0.16 + rnd() * 0.05);
-    const tiers = 13 + Math.floor(rnd() * 4);
+    // Distant pines keep a slightly lighter crown, but not so light that the
+    // treeline reads as a different, coarser species behind the inner forest.
+    const tiers = pine.far ? 10 + Math.floor(rnd() * 3) : 13 + Math.floor(rnd() * 4);
     const maxRadius = pine.h * (0.15 + rnd() * 0.038);
     for (let tier = 0; tier < tiers; tier++) {
       const t = tier / (tiers - 1);
       const y = baseY + branchStart + (t * (pine.h - branchStart - 1.05));
       const canopyRadius = maxRadius * Math.pow(1 - t * 0.94, 0.88) * (0.85 + rnd() * 0.42);
-      const fronds = 9 + Math.round((1 - t) * 3);
+      const fronds = pine.far ? 7 + Math.round((1 - t) * 3) : 9 + Math.round((1 - t) * 3);
       const baseAngle = rnd() * Math.PI * 2 + tier * 0.55;
       for (let i = 0; i < fronds; i++) {
         const a = baseAngle + (i / fronds) * Math.PI * 2 + (rnd() - 0.5) * 0.32;
@@ -665,15 +704,30 @@ function createTrees(scene, timeUniform, pathSamples) {
           pine.z + dir.z * pine.r * 0.55
         );
         if (pine.far) {
-          const thick = len * (0.2 + rnd() * 0.12);
-          farPineBatch.add(
-            composeMatrix(origin, tempQuat, new THREE.Vector3(len, thick * 0.6, thick)),
-            leafColor.setHSL(
-              0.32 + rnd() * 0.045,
-              0.22 + rnd() * 0.12,
-              0.15 + rnd() * 0.08 - t * 0.02
-            )
-          );
+          // Distant pines keep the cheap cone frond — but a "far" tree can end
+          // up close to the camera, so the ones near the frame use the detailed
+          // needle cards just like the inner forest.
+          const near = Math.hypot(pine.x - 9.8, pine.z - 35.0) < 46 || Math.hypot(pine.x, pine.z) < 30;
+          if (near) {
+            pineBatch.add(
+              composeMatrix(origin, tempQuat, new THREE.Vector3(len, len, len)),
+              leafColor.setHSL(
+                0.29 + rnd() * 0.075,
+                0.2 + rnd() * 0.16,
+                0.5 + rnd() * 0.22 - t * 0.03
+              )
+            );
+          } else {
+            const thick = len * (0.2 + rnd() * 0.12);
+            farPineBatch.add(
+              composeMatrix(origin, tempQuat, new THREE.Vector3(len, thick * 0.6, thick)),
+              leafColor.setHSL(
+                0.32 + rnd() * 0.045,
+                0.22 + rnd() * 0.12,
+                0.15 + rnd() * 0.08 - t * 0.02
+              )
+            );
+          }
         } else {
           pineBatch.add(
             composeMatrix(origin, tempQuat, new THREE.Vector3(len, len, len)),
@@ -715,14 +769,26 @@ function createTrees(scene, timeUniform, pathSamples) {
       const dir = new THREE.Vector3(Math.cos(a) * 0.55, 0.35, Math.sin(a) * 0.55).normalize();
       tempQuat.setFromUnitVectors(xVec, dir);
       if (pine.far) {
-        farPineBatch.add(
-          composeMatrix(
-            new THREE.Vector3(pine.x, baseY + pine.h - 0.7, pine.z),
-            tempQuat,
-            new THREE.Vector3(0.8 + rnd() * 0.6, 0.3, 0.3)
-          ),
-          leafColor.setHSL(0.32, 0.27, 0.17 + rnd() * 0.06)
-        );
+        const near = Math.hypot(pine.x - 9.8, pine.z - 35.0) < 46 || Math.hypot(pine.x, pine.z) < 30;
+        if (near) {
+          pineBatch.add(
+            composeMatrix(
+              new THREE.Vector3(pine.x, baseY + pine.h - 0.9, pine.z),
+              tempQuat,
+              new THREE.Vector3(1.0 + rnd() * 0.7, 1, 1)
+            ),
+            leafColor.setHSL(0.3 + rnd() * 0.04, 0.24, 0.58 + rnd() * 0.14)
+          );
+        } else {
+          farPineBatch.add(
+            composeMatrix(
+              new THREE.Vector3(pine.x, baseY + pine.h - 0.7, pine.z),
+              tempQuat,
+              new THREE.Vector3(0.8 + rnd() * 0.6, 0.3, 0.3)
+            ),
+            leafColor.setHSL(0.32, 0.27, 0.17 + rnd() * 0.06)
+          );
+        }
       } else {
         pineBatch.add(
           composeMatrix(
@@ -934,7 +1000,7 @@ function createTrees(scene, timeUniform, pathSamples) {
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
     if (Math.abs(x) < 5.1 && Math.abs(z) < 4.3) continue;
-    if (z > 4 && z < 22 && Math.abs(x - z * 0.47) < 2.4) continue;
+    if (blockedByLake(x, z, 1.3)) continue;
     // Keep the lit lantern post clear: strong warm light turns these into
     // faceted shards at close range.
     if (Math.hypot(x + 2.78, z - 12.15) < 5.0) continue;
@@ -966,7 +1032,20 @@ function createTrees(scene, timeUniform, pathSamples) {
   group.add(leafCards);
 
   scene.add(group);
-  return group;
+  return {
+    group,
+    materials: collectMaterials(group),
+  };
+}
+
+function collectMaterials(root) {
+  const materials = new Set();
+  root.traverse((object) => {
+    if (!object.material) return;
+    const list = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of list) materials.add(material);
+  });
+  return [...materials];
 }
 
 /* ------------------------------------------------------------------ *
@@ -1267,14 +1346,17 @@ function createDustMotes(scene, timeUniform, nightUniform) {
  * Public
  * ------------------------------------------------------------------ */
 
-export function createForest(scene, timeUniform, pathCurve, smokeOrigin) {
+export function createForest(scene, timeUniform, pathCurve, smokeOrigin, { snowUniform } = {}) {
   const pathSamples = pathCurve.getPoints(90);
   pathSamples.forEach((p) => {
     p.y = groundHeight(p.x, p.z);
   });
   const nightUniform = { value: 0 };
-  createTrees(scene, timeUniform, pathSamples);
+  const trees = createTrees(scene, timeUniform, pathSamples);
   createForestFloorDetails(scene, pathSamples, timeUniform);
+  if (snowUniform) {
+    for (const material of trees.materials) enableSnow(material, snowUniform);
+  }
   const smoke = createSmoke(scene, smokeOrigin, timeUniform, nightUniform);
   const fireflies = createFireflies(scene, timeUniform, nightUniform);
   const dust = createDustMotes(scene, timeUniform, nightUniform);

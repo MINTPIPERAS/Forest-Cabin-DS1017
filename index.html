@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0b1212" />
   <meta name="description" content="森林深处的一座木屋，暮色、薄雾与一盏暖灯。一个可交互的 3D 电影感林间场景。" />
-  <title>林间灯暖 · Mistwood Cabin</title>
+  <title>林深见灯 · Mistwood Cabin</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d1514'/%3E%3Cpath d='M32 51V28M32 38c-8 0-14-5-14-13 8 0 14 5 14 13Zm0-5c8 0 14-5 14-13-8 0-14 5-14 13Z' fill='none' stroke='%23d8be8c' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif+SC:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=5" />
 </head>
 <body>
   <main id="scene-root" aria-label="森林中的木屋 3D 场景">
@@ -36,7 +36,7 @@
         </span>
         <span class="brand-copy">
           <span class="brand-name">Mistwood</span>
-          <span class="brand-sub">林间小屋 · Nº 09</span>
+          <span class="brand-sub" data-copy="brandSub">湖畔灯舍 · Nº 09</span>
         </span>
       </a>
       <div class="status" aria-label="场景天气与时间">
@@ -51,14 +51,14 @@
     </header>
 
     <section class="intro-copy hud" aria-label="场景信息">
-      <p class="eyebrow"><span></span> A quieter kind of evening</p>
-      <h1>林间<span class="accent">灯暖</span></h1>
+      <p class="eyebrow"><span></span> <span data-copy="eyebrow">A quieter kind of evening</span></p>
+      <h1><span data-copy="heroTitleMain">林深</span><span class="accent" data-copy="heroTitleAccent">见灯</span></h1>
       <p class="tagline" id="scene-tagline">暮色漫过松针，木屋里煨着一盏黄昏。</p>
       <div class="interaction-note">
         <span class="note-line"></span>
-        <span>拖动环视</span>
+        <span data-copy="hintOrbit">拖动环视</span>
         <i></i>
-        <span>滚轮靠近</span>
+        <span data-copy="hintZoom">滚轮靠近</span>
       </div>
     </section>
 
@@ -81,14 +81,10 @@
         <span class="sound-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
       </button>
 
-      <button id="night-toggle" class="control-button" type="button" aria-label="切换到深夜" data-tooltip="点亮夜色" aria-pressed="false">
-        <svg class="icon icon-moon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M19 15.6A7.6 7.6 0 0 1 8.4 5a8.2 8.2 0 1 0 10.6 10.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-          <path d="M17.8 4.2v3.1M19.3 5.8h-3.1" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-        </svg>
-        <svg class="icon icon-sun" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="3.7" stroke="currentColor" stroke-width="1.3"/>
-          <path d="M12 3.2v2M12 18.8v2M3.2 12h2M18.8 12h2M5.8 5.8l1.4 1.4M16.8 16.8l1.4 1.4M18.2 5.8l-1.4 1.4M7.2 16.8l-1.4 1.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      <button id="immersive-toggle" class="control-button" type="button" aria-label="进入沉浸模式" data-tooltip="沉浸看景 · H" aria-pressed="false">
+        <svg class="icon icon-immersive" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M3 8.5V5.5A2.5 2.5 0 0 1 5.5 3h3M15.5 3h3A2.5 2.5 0 0 1 21 5.5v3M21 15.5v3a2.5 2.5 0 0 1-2.5 2.5h-3M8.5 21h-3A2.5 2.5 0 0 1 3 18.5v-3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+          <circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.2"/>
         </svg>
       </button>
 
@@ -102,10 +98,72 @@
       </button>
     </nav>
 
+    <section class="scene-switcher hud" aria-label="场景设置">
+      <div class="switcher-group" role="group" aria-label="光线">
+        <span class="switcher-label">光线</span>
+        <div class="segmented">
+          <button type="button" data-time="day" aria-pressed="false" class="segment">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="3.6" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M12 3.4v1.9M12 18.7v1.9M3.4 12h1.9M18.7 12h1.9M6 6l1.3 1.3M16.7 16.7 18 18M18 6l-1.3 1.3M7.3 16.7 6 18" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+            </svg>
+            <span>白天</span>
+          </button>
+          <button type="button" data-time="dusk" aria-pressed="true" class="segment is-active">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 16.5h16M6.6 16.5a5.4 5.4 0 0 1 10.8 0" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              <path d="M12 4.5v3M4.7 8.2l1.5 1.5M19.3 8.2l-1.5 1.5M2.6 16.5h1.2M20.2 16.5h1.2" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+            </svg>
+            <span>黄昏</span>
+          </button>
+          <button type="button" data-time="night" aria-pressed="false" class="segment">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M19 15.6A7.6 7.6 0 0 1 8.4 5a8.2 8.2 0 1 0 10.6 10.6Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+            </svg>
+            <span>夜晚</span>
+          </button>
+        </div>
+      </div>
+
+      <span class="switcher-rule" aria-hidden="true"></span>
+
+      <div class="switcher-group" role="group" aria-label="天气">
+        <span class="switcher-label">天气</span>
+        <div class="segmented">
+          <button type="button" data-weather="clear" aria-pressed="true" class="segment is-active">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.3"/>
+              <path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6l1.6 1.6M16.8 16.8l1.6 1.6M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            </svg>
+            <span>晴</span>
+          </button>
+          <button type="button" data-weather="rain" aria-pressed="false" class="segment">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 14.5a3.6 3.6 0 0 1 .3-7.2 4.9 4.9 0 0 1 9.3 1.4 3 3 0 0 1-.4 5.8H7Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/>
+              <path d="m9 17.4-1 2.6M13 17.4l-1 2.6M17 17.4l-1 2.6" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+            </svg>
+            <span>雨</span>
+          </button>
+          <button type="button" data-weather="snow" aria-pressed="false" class="segment">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M12 3.5v17M4.6 7.8l14.8 8.4M19.4 7.8 4.6 16.2" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+              <path d="m9.4 5.4 2.6 1.7 2.6-1.7M9.4 18.6l2.6-1.7 2.6 1.7" stroke="currentColor" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>雪</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
     <div class="location hud" aria-hidden="true">
       <span>48° 12′ N</span>
       <span class="location-sep"></span>
       <span>121° 47′ E</span>
+    </div>
+
+    <div class="immersive-hint" aria-hidden="true">
+      <span class="immersive-key">H</span>
+      <span data-copy="immersiveHint">退出沉浸模式</span>
     </div>
   </main>
 
@@ -118,12 +176,12 @@
           <path d="M32 30.5c8.3 0 14.3-5.3 14.3-13.1-8.2 0-14.3 5.2-14.3 13.1Z" stroke="currentColor" stroke-width="1.2"/>
         </svg>
       </div>
-      <p class="loader-kicker">MISTWOOD · Nº 09</p>
-      <p class="loader-title">林间灯暖</p>
+      <p class="loader-kicker" data-copy="loaderKicker">MISTWOOD · Nº 09</p>
+      <p class="loader-title" data-copy="loaderTitle">林深见灯</p>
       <div class="loader-progress"><span></span></div>
-      <p class="loader-status">正在穿过雾林，点亮灯火…</p>
+      <p class="loader-status" data-copy="loaderStatus">正在穿过雾林，点亮灯火…</p>
     </div>
-    <p class="loader-foot">A FILM-LIKE FOREST STUDY · BEST WITH SOUND</p>
+    <p class="loader-foot" data-copy="loaderFoot">A FILM-LIKE FOREST STUDY · BEST WITH SOUND</p>
   </div>
 
   <noscript>
@@ -150,6 +208,18 @@
         report(String(event.reason && event.reason.message || event.reason), event.reason && event.reason.stack);
       });
       window.__mistwoodReport = report;
+      // Surface merge warnings from the world builder in the page for debugging.
+      window.__mistwoodLogs = [];
+      const origWarn = console.warn.bind(console);
+      const origError = console.error.bind(console);
+      console.warn = (...args) => {
+        window.__mistwoodLogs.push('warn: ' + args.map(String).join(' '));
+        origWarn(...args);
+      };
+      console.error = (...args) => {
+        window.__mistwoodLogs.push('error: ' + args.map(String).join(' '));
+        origError(...args);
+      };
     })();
   </script>
   <script type="importmap">
@@ -160,6 +230,6 @@
       }
     }
   </script>
-  <script type="module" src="./src/main.js" onerror="window.__mistwoodReport && window.__mistwoodReport('模块加载失败: ' + this.src)"></script>
+  <script type="module" src="./src/main.js?v=3" onerror="window.__mistwoodReport && window.__mistwoodReport('模块加载失败: ' + this.src)"></script>
 </body>
 </html>

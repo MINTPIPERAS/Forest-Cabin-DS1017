@@ -61,13 +61,84 @@ export const smoothstep = (a, b, x) => {
  * Terrain height — shared by every scattered object
  * ------------------------------------------------------------------ */
 
+export const LAKE = {
+  x: 2.0,
+  z: 22.0,
+  rx: 21.0,
+  rz: 10.0,
+  // Raised so the water reaches the grassy shelf and hides the flat beach that
+  // used to show as straight polygon edges between the mesh border and the bank.
+  waterY: -0.2,
+};
+
+// Shader-side twin of lakeBoundary. Keep the two in sync: the water mesh is
+// built with the CPU version while the shoreline tint uses the GPU version.
+export const LAKE_BOUNDARY_GLSL = /* glsl */ `
+  float lakeBoundaryGLSL(float u) {
+    float a = max(0.0, 1.0 - u * u);
+    // Parabolic half-width: finite slope at u = +/-1, so both ends close into
+    // a true triangular point instead of a rounded, blunt cap.
+    float tipWindow = pow(a, 0.6);
+    float wobble =
+      1.0 +
+      tipWindow * (
+        sin(u * 3.1 + 0.8) * 0.08 +
+        sin(u * 6.4 - 1.3) * 0.04 +
+        sin(u * 11.7 + 2.1) * 0.02
+      );
+    return a * wobble;
+  }
+`;
+
+// Normalized distance from the lake centre: < 1 is open water, ~1 is the shore.
+// A parabolic lens: rounded through the middle, tapering to sharp points at
+// both ends. Wobble is windowed so the tips stay crisp.
+export function lakeBoundary(u) {
+  const a = Math.max(0, 1 - u * u);
+  const tipWindow = Math.pow(a, 0.6);
+  const wobble =
+    1 +
+    tipWindow * (
+      Math.sin(u * 3.1 + 0.8) * 0.08 +
+      Math.sin(u * 6.4 - 1.3) * 0.04 +
+      Math.sin(u * 11.7 + 2.1) * 0.02
+    );
+  return a * wobble;
+}
+
+export function lakeField(x, z) {
+  const u = (x - LAKE.x) / LAKE.rx;
+  const v = (z - LAKE.z) / LAKE.rz;
+  const shape = lakeBoundary(u);
+  if (shape < 0.02) return 10;
+  const d = Math.abs(v) / shape;
+  const wobble = (fbm(x * 0.075 + 5.2, z * 0.075 - 3.4, 3) - 0.5) * 0.035;
+  return d * (1 + wobble);
+}
+
+export function isInLake(x, z, margin = 1.0) {
+  return lakeField(x, z) < margin;
+}
+
 export function groundHeight(x, z) {
   const broad = (fbm(x * 0.028 + 11.2, z * 0.028 - 4.7, 4) - 0.5) * 2.6;
   const small = (fbm(x * 0.11 + 2.0, z * 0.11 + 8.0, 3) - 0.5) * 0.34;
   const dist = Math.hypot(x, z + 1.5);
   const clearing = smoothstep(8.5, 28.0, dist);
   const farRise = smoothstep(24, 62, dist) * 3.4 + smoothstep(55, 110, dist) * 6.0;
-  return (broad + small) * (0.16 + clearing * 0.84) + farRise;
+  let height = (broad + small) * (0.16 + clearing * 0.84) + farRise;
+
+  // Carve the lake basin as one continuous slope, with no flat shelf at or
+  // above the waterline. The visible shore is simply where this slope crosses
+  // the water plane, so there is no dry green rim sitting in the lake.
+  const d = lakeField(x, z);
+  height = lerp(height, LAKE.waterY - 2.4, smoothstep(1.18, 0.5, d));
+  // Raise a rim just outside the bank. The water sheet is deliberately larger
+  // than the lake, and this ring is what hides its outer border under ground
+  // instead of letting a flat edge show through the slope. It starts beyond the
+  // cabin's own distance so the house pad stays level.
+  height += smoothstep(2.3, 2.9, d) * smoothstep(3.8, 2.9, d) * 1.0;
+  return height;
 }
 
 /* ------------------------------------------------------------------ *
@@ -542,7 +613,7 @@ export function makePineBoughTexture(seed = 17) {
   );
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.anisotropy = 8;
+  texture.anisotropy = 16;
   return texture;
 }
 
@@ -804,8 +875,66 @@ export function makeStoneGeometry(seed = 1) {
   return geometry;
 }
 
-export function orientCylinderBetween(mesh, start, end) {
-  const direction = new THREE.Vector3().subVectors(end, start);
+/* ------------------------------------------------------------------ *
+ * Snow cover shader patch
+ * ------------------------------------------------------------------ */
+
+const SNOW_COLOR = 'vec3(0.83, 0.87, 0.92)';
+
+export function applySnowPatch(shader, snowUniform) {
+  if (!snowUniform || !shader) return;
+  // Idempotent: the same shader object can pass through here from more than one
+  // material wrapper, and duplicating the declarations breaks compilation.
+  if (shader.vertexShader.includes('vSnowNormalW')) return;
+  shader.uniforms.uSnowCover = snowUniform;
+  shader.vertexShader = `varying vec3 vSnowNormalW;\nvarying vec3 vSnowWorldPos;\n${shader.vertexShader}`;
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <defaultnormal_vertex>',
+    `#include <defaultnormal_vertex>
+    vec3 snowObjectNormal = objectNormal;
+    vec3 snowLocalPos = position;
+    #ifdef USE_INSTANCING
+      snowObjectNormal = mat3(instanceMatrix) * snowObjectNormal;
+      snowLocalPos = (instanceMatrix * vec4(position, 1.0)).xyz;
+    #endif
+    vSnowNormalW = normalize(mat3(modelMatrix) * snowObjectNormal);
+    vSnowWorldPos = (modelMatrix * vec4(snowLocalPos, 1.0)).xyz;
+    `
+  );
+  shader.fragmentShader = `uniform float uSnowCover;\nvarying vec3 vSnowNormalW;\nvarying vec3 vSnowWorldPos;\n${shader.fragmentShader}`;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <color_fragment>',
+    `#include <color_fragment>
+    float snowPatchNoise = fract(sin(dot(floor(vSnowWorldPos.xz * 2.6), vec2(12.9898, 78.233))) * 43758.5453);
+    float snowFacing = smoothstep(0.18, 0.72, vSnowNormalW.y);
+    float snowMask = clamp(snowFacing * uSnowCover * (0.6 + snowPatchNoise * 0.55), 0.0, 1.0);
+    diffuseColor.rgb = mix(diffuseColor.rgb, ${SNOW_COLOR}, snowMask);
+    `
+  );
+}
+
+export function enableSnow(material, snowUniform) {
+  if (!snowUniform) return material;
+  // Several merged batches share the same material instance, and some meshes
+  // pass through this path twice. Patching twice duplicates the GLSL
+  // declarations and the program fails to compile (the mesh silently vanishes),
+  // so remember which materials are already patched.
+  if (material.userData && material.userData.__snowPatched) return material;
+  if (!material.userData) material.userData = {};
+  material.userData.__snowPatched = true;
+
+  const previous = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (previous) previous(shader, renderer);
+    applySnowPatch(shader, snowUniform);
+  };
+  const previousKey = material.customProgramCacheKey ? material.customProgramCacheKey() : 'default';
+  material.customProgramCacheKey = () => `${previousKey}-snow`;
+  material.needsUpdate = true;
+  return material;
+}
+
+export function orientCylinderBetween(mesh, start, end) {  const direction = new THREE.Vector3().subVectors(end, start);
   const length = direction.length();
   mesh.position.copy(start).addScaledVector(direction, 0.5);
   mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
@@ -850,6 +979,18 @@ export function mergeStaticMeshes(root) {
   });
 
   const addGeometry = (geometry, material, matrix, object) => {
+    // A few source meshes can carry degenerate vertices; drop those geometries
+    // rather than poisoning the merged batch (NaN positions break culling and
+    // can make an entire batch vanish).
+    const pos = geometry.attributes.position;
+    if (pos) {
+      for (let i = 0; i < pos.count; i++) {
+        if (!Number.isFinite(pos.getX(i)) || !Number.isFinite(pos.getY(i)) || !Number.isFinite(pos.getZ(i))) {
+          geometry.dispose();
+          return;
+        }
+      }
+    }
     const key = [
       material.uuid,
       object.castShadow ? 1 : 0,
@@ -924,6 +1065,26 @@ export function mergeStaticMeshes(root) {
     }
     for (const geometry of batch.geometries) geometry.dispose();
     if (!merged) continue;
+    // Validate positions directly instead of relying on computeBoundingBox,
+    // which logs its own error before we can reject the batch.
+    const mergedPos = merged.attributes.position;
+    let valid = Boolean(mergedPos);
+    if (valid) {
+      for (let i = 0; i < mergedPos.count; i++) {
+        if (
+          !Number.isFinite(mergedPos.getX(i)) ||
+          !Number.isFinite(mergedPos.getY(i)) ||
+          !Number.isFinite(mergedPos.getZ(i))
+        ) {
+          valid = false;
+          break;
+        }
+      }
+    }
+    if (!valid) {
+      merged.dispose();
+      continue;
+    }
     merged.computeBoundingSphere();
     const mesh = new THREE.Mesh(merged, batch.material);
     mesh.castShadow = batch.castShadow;

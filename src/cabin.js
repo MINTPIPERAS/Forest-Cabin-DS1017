@@ -12,6 +12,7 @@ import {
   createFernGeometry,
   makeStoneGeometry,
   mergeStaticMeshes,
+  enableSnow,
   groundHeight,
 } from './utils.js';
 
@@ -22,7 +23,9 @@ const DIM = {
   wallTop: 3.78,
   ridge: 5.92,
   eaveX: 5.5,
-  roofDepth: 9.5,
+  // Roof overhang in Z is what shades the porch: it has to clear the porch
+  // depth plus the door frame, otherwise the frame shows past the eave.
+  roofDepth: 11.6,
   porchTop: 0.73,
   porchDepth: 1.92,
 };
@@ -85,7 +88,7 @@ function makeMat(capabilities) {
   const stone = makeStoneTexture(21);
   const roof = makeRoofTexture(33);
   const endGrain = makeEndGrainTexture();
-  for (const t of [bark, log, plank, stone, roof, endGrain]) t.anisotropy = Math.min(8, anisotropy);
+  for (const t of [bark, log, plank, stone, roof, endGrain]) t.anisotropy = Math.min(16, anisotropy);
   log.repeat.set(1.2, 4);
   bark.repeat.set(1, 3);
   plank.repeat.set(1, 1);
@@ -555,14 +558,14 @@ function addAxeAndStump(parent, mats) {
 function addFence(parent, mats) {
   const random = mulberry32(310);
   const start = new THREE.Vector3(-8.0, 0, 4.8);
-  const end = new THREE.Vector3(-7.1, 0, 11.5);
+  const end = new THREE.Vector3(-7.4, 0, 10.6);
   const posts = 3;
   const postPositions = [];
   for (let i = 0; i < posts; i++) {
     const t = i / (posts - 1);
     const p = start.clone().lerp(end, t);
     p.x += Math.sin(t * 5) * 0.25;
-    p.y = 0.6;
+    p.y = 0.6 + (groundHeight(p.x, p.z) - groundHeight(0, 0));
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 1.4, 7), mats.bark);
     post.position.copy(p);
     post.rotation.z = (random() - 0.5) * 0.08;
@@ -576,8 +579,10 @@ function addFence(parent, mats) {
     for (let level = 0; level < 2; level++) {
       const a = postPositions[i].clone();
       const b = postPositions[i + 1].clone();
-      a.y = 0.72 + level * 0.4;
-      b.y = 0.72 + level * 0.4;
+      const groundA = groundHeight(a.x, a.z) - groundHeight(0, 0);
+      const groundB = groundHeight(b.x, b.z) - groundHeight(0, 0);
+      a.y = 0.72 + level * 0.4 + groundA;
+      b.y = 0.72 + level * 0.4 + groundB;
       a.x += 0.06;
       b.x -= 0.06;
       addLog(parent, 0.055, a, b, mats.bark, mats.endGrain, 6);
@@ -585,7 +590,7 @@ function addFence(parent, mats) {
   }
 }
 
-export function createCabin(renderer) {
+export function createCabin(renderer, { snowUniform } = {}) {
   const group = new THREE.Group();
   group.name = 'cabin';
   const mats = makeMat(renderer.capabilities);
@@ -671,8 +676,20 @@ export function createCabin(renderer) {
   addBox(group, [W + 0.9, 0.17, 0.28], [0, DIM.wallTop - 0.02, frontZ + 0.02], mats.logDark);
   addBox(group, [W + 0.9, 0.17, 0.28], [0, DIM.wallTop - 0.02, -frontZ - 0.02], mats.logDark);
 
-  // Gable geometry (front/back), with natural horizontal cladding.
-  const gableHeight = DIM.ridge - DIM.wallTop;
+  // Roof panels. The gable and the roof must share the exact same slope: a
+  // steeper gable pokes out above the roof, a shallower one leaves a gap.
+  const run = DIM.eaveX;
+  const slope = (DIM.ridge - DIM.wallTop) / (W / 2);
+  // Lift the roof just above the gable apex so the ridge cap always covers it.
+  const ridgeY = DIM.ridge + 0.1;
+  const eaveY = ridgeY - run * slope;
+  const rise = ridgeY - eaveY;
+  const angle = Math.atan2(rise, run);
+  const slopeLength = Math.sqrt(run * run + rise * rise) + 0.12;
+
+  // Gable is a pure triangle: any vertical side wall here would stick out past
+  // the roof. Its apex stays a hair under the roof ridge.
+  const gableHeight = ridgeY - DIM.wallTop - 0.06;
   const gableShape = new THREE.Shape();
   gableShape.moveTo(-W / 2, 0);
   gableShape.lineTo(W / 2, 0);
@@ -687,42 +704,78 @@ export function createCabin(renderer) {
     gable.receiveShadow = true;
     group.add(gable);
   }
-  // Cladding lines on gable faces suggest smaller logs.
+  // Cladding lines on gable faces suggest smaller logs. Each line is clipped to
+  // the triangle, so it never pokes out past the roof rake.
   for (let i = 1; i < 6; i++) {
     const t = i / 6;
     const y = DIM.wallTop + t * gableHeight;
-    const half = (W / 2) * (1 - t);
+    const usableHalf = (W / 2) * (1 - t) * 0.94;
+    if (usableHalf < 0.3) continue;
     for (const z of [frontZ + 0.205, -frontZ - 0.205]) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(half * 1.9, 0.055, 0.035), mats.trim);
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(usableHalf * 2, 0.055, 0.035), mats.trim);
       beam.position.set(0, y, z);
       beam.castShadow = false;
       group.add(beam);
     }
   }
 
-  // Roof panels.
-  const run = DIM.eaveX;
-  const rise = DIM.ridge - 3.72;
-  const angle = Math.atan2(rise, run);
-  const slopeLength = Math.sqrt(run * run + rise * rise) + 0.12;
+  // Two stacked roof layers: a wider lower slab (the eave overhang) and a
+  // slightly shorter upper course. They share the same slope and sit directly
+  // on top of each other, so there is no gap between the courses.
+  const lowerThickness = 0.16;
+  const upperThickness = 0.14;
   for (const side of [-1, 1]) {
-    const panel = addBox(
+    const lower = addBox(
       group,
-      [slopeLength, 0.18, DIM.roofDepth],
-      [side * run * 0.5, 3.72 + rise * 0.5, 0],
+      [slopeLength, lowerThickness, DIM.roofDepth],
+      [side * run * 0.5, eaveY + rise * 0.5, 0],
       mats.roof,
       { rotation: [0, 0, side * -angle] }
     );
-    panel.name = 'roofPanel';
-    panel.castShadow = true;
-    panel.receiveShadow = true;
+    lower.name = 'roofPanelLower';
+    lower.castShadow = true;
+    lower.receiveShadow = true;
+
+    // Upper course is shorter at the eaves (the lower board shows as a lip)
+    // and slightly narrower in depth, like real layered shingle courses.
+    const upperLength = slopeLength - 0.55;
+    const upperDepth = DIM.roofDepth - 0.16;
+    const lift = (lowerThickness + upperThickness) * 0.5 + 0.004;
+    const upper = addBox(
+      group,
+      [upperLength, upperThickness, upperDepth],
+      [
+        side * (run * 0.5 - 0.14),
+        eaveY + rise * 0.5 + lift,
+        0,
+      ],
+      mats.roof,
+      { rotation: [0, 0, side * -angle] }
+    );
+    upper.name = 'roofPanelUpper';
+    upper.castShadow = true;
+    upper.receiveShadow = true;
   }
   // Ridge cap.
-  addBox(group, [0.26, 0.2, DIM.roofDepth * 0.97], [0, DIM.ridge + 0.1, 0], mats.trim);
+  addBox(group, [0.3, 0.22, DIM.roofDepth * 0.98], [0, ridgeY + 0.16, 0], mats.trim);
+  // Verge boards: the roof slabs are thin, so their exposed end faces read as
+  // flat rectangles from the front. A board along each rake closes them and
+  // gives the roof a proper silhouette.
+  for (const z of [DIM.roofDepth / 2 - 0.03, -DIM.roofDepth / 2 + 0.03]) {
+    for (const side of [-1, 1]) {
+      addBox(
+        group,
+        [slopeLength + 0.16, 0.34, 0.16],
+        [side * run * 0.5, eaveY + rise * 0.5 - 0.02, z],
+        mats.trim,
+        { rotation: [0, 0, side * -angle] }
+      );
+    }
+  }
   // Barge boards along the gable edges.
   for (const z of [DIM.roofDepth / 2 - 0.02, -DIM.roofDepth / 2 + 0.02]) {
     for (const side of [-1, 1]) {
-      const board = addBox(group, [slopeLength + 0.1, 0.27, 0.12], [side * run * 0.5, 3.72 + rise * 0.5 - 0.04, z], mats.trim, {
+      const board = addBox(group, [slopeLength + 0.1, 0.27, 0.12], [side * run * 0.5, eaveY + rise * 0.5 - 0.04, z], mats.trim, {
         rotation: [0, 0, side * -angle],
       });
       board.castShadow = true;
@@ -730,7 +783,7 @@ export function createCabin(renderer) {
   }
   // Eave fascia.
   for (const side of [-1, 1]) {
-    addBox(group, [0.12, 0.22, DIM.roofDepth], [side * (run + 0.02), 3.68, 0], mats.trim, { castShadow: false });
+    addBox(group, [0.12, 0.22, DIM.roofDepth], [side * (run + 0.02), eaveY - 0.04, 0], mats.trim, { castShadow: false });
   }
   // Porch floor.
   addBox(group, [W + 0.82, 0.18, DIM.porchDepth], [0, DIM.porchTop - 0.09, frontZ + DIM.porchDepth / 2 - 0.02], mats.plank);
@@ -893,25 +946,32 @@ export function createCabin(renderer) {
     }
   }
 
-  // Chimney.
+  // Chimney. The stack must fully pierce the roof plane so no daylight shows
+  // under it; the stone collar hides the intersection from every angle.
   const chimneyX = 2.55;
   const chimneyZ = 0.3;
   const chimneyBottom = -0.05;
-  const chimneyTop = 6.55;
-  addBox(group, [1.08, chimneyTop - chimneyBottom, 1.0], [chimneyX, chimneyBottom + (chimneyTop - chimneyBottom) / 2, chimneyZ], mats.stone);
-  addBox(group, [1.22, 0.24, 1.14], [chimneyX, 5.02, chimneyZ], mats.stoneDark);
-  addBox(group, [1.18, 0.22, 1.1], [chimneyX, chimneyTop - 0.12, chimneyZ], mats.stoneDark);
-  addBox(group, [0.86, 0.36, 0.86], [chimneyX, chimneyTop + 0.16, chimneyZ], mats.iron);
+  const chimneyTop = 6.75;
+  const roofAtChimney = eaveY + (run - Math.abs(chimneyX)) * (rise / run);
+  addBox(group, [1.12, chimneyTop - chimneyBottom, 1.04], [chimneyX, chimneyBottom + (chimneyTop - chimneyBottom) / 2, chimneyZ], mats.stone);
+  addBox(group, [1.26, 0.26, 1.18], [chimneyX, roofAtChimney + 0.18, chimneyZ], mats.stoneDark);
+  addBox(group, [1.2, 0.22, 1.12], [chimneyX, chimneyTop - 0.12, chimneyZ], mats.stoneDark);
+  addBox(group, [0.88, 0.36, 0.88], [chimneyX, chimneyTop + 0.16, chimneyZ], mats.iron);
   const chimneyPipe = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.23, 0.65, 10), mats.iron);
   chimneyPipe.position.set(chimneyX, chimneyTop + 0.62, chimneyZ);
   chimneyPipe.castShadow = true;
   group.add(chimneyPipe);
-  // Flashing at roof intersection.
-  const flash = addBox(group, [1.3, 0.04, 1.22], [chimneyX, 4.65, chimneyZ], mats.iron, {
-    rotation: [0, 0, -angle * 0.4],
+  // A sloped stone apron where the stack meets the roof.
+  const flash = addBox(group, [1.42, 0.12, 1.34], [chimneyX, roofAtChimney - 0.06, chimneyZ], mats.stoneDark, {
+    rotation: [0, 0, -angle],
     castShadow: false,
   });
   flash.receiveShadow = true;
+  // A second, lower collar keeps the gap closed on the opposite slope.
+  addBox(group, [1.34, 0.1, 1.28], [chimneyX, roofAtChimney - 0.42, chimneyZ], mats.stone, {
+    rotation: [0, 0, -angle],
+    castShadow: false,
+  });
   // Some protruding stones for silhouette.
   for (let i = 0; i < 9; i++) {
     const stone = new THREE.Mesh(makeStoneGeometry(70 + i), i % 3 ? mats.stone : mats.stoneDark);
@@ -940,12 +1000,26 @@ export function createCabin(renderer) {
   }
 
   // Exterior details.
-  addWoodpile(group, mats).position.set(-5.35, 0.03, 2.7);
-  addAxeAndStump(group, mats).position.set(-5.9, 0.02, 6.45);
+  addWoodpile(group, mats).position.set(
+    -5.35,
+    groundHeight(-5.35, 2.7) - groundHeight(0, 0) + 0.03,
+    2.7
+  );
+  addAxeAndStump(group, mats).position.set(
+    -5.9,
+    groundHeight(-5.9, 6.45) - groundHeight(0, 0) + 0.02,
+    6.45
+  );
   addFence(group, mats);
 
   const postLantern = createPostLantern(mats);
-  postLantern.group.position.set(-2.78, 0.02, 12.15);
+  // Props sit on the cabin's local ground plane, but the nearby lake basin
+  // lowers the terrain, so the lantern needs to follow the actual ground.
+  postLantern.group.position.set(
+    -3.3,
+    groundHeight(-3.3, 10.2) - groundHeight(0, 0) + 0.02,
+    10.2
+  );
   group.add(postLantern.group);
 
   const sign = new THREE.Group();
@@ -961,7 +1035,11 @@ export function createCabin(renderer) {
   signBoard.rotation.z = -0.045;
   signBoard.castShadow = true;
   sign.add(signBoard);
-  sign.position.set(-2.4, 0.02, 8.4);
+  sign.position.set(
+    -2.4,
+    groundHeight(-2.4, 8.4) - groundHeight(0, 0) + 0.02,
+    8.4
+  );
   sign.rotation.y = 0.27;
   group.add(sign);
 
@@ -1036,5 +1114,14 @@ export function createCabin(renderer) {
   };
 
   mergeStaticMeshes(group);
+  if (snowUniform) {
+    group.traverse((object) => {
+      if (!object.isMesh || object.isInstancedMesh) return;
+      const list = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of list) {
+        if (material.isMeshStandardMaterial) enableSnow(material, snowUniform);
+      }
+    });
+  }
   return group;
 }

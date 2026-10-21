@@ -317,11 +317,21 @@ body.scene-ready .location {
   color: rgba(229, 201, 158, 0.74);
 }
 
-.eyebrow span {
+/* Only the decorative rule, not the text span that follows it. */
+.eyebrow > span:first-child {
   display: block;
   width: 27px;
   height: 1px;
+  flex: none;
   background: rgba(224, 193, 148, 0.48);
+}
+
+.eyebrow > span:last-child {
+  display: inline;
+  width: auto;
+  height: auto;
+  flex: none;
+  white-space: nowrap;
 }
 
 .intro-copy h1 {
@@ -337,7 +347,7 @@ body.scene-ready .location {
 
 .intro-copy .accent {
   color: var(--warm);
-  margin-left: 0.02em;
+  margin-left: 0.16em;
 }
 
 .tagline {
@@ -374,6 +384,158 @@ body.scene-ready .location {
 }
 
 /* ------------------------------------------------------------------ */
+/* Scene switcher                                                     */
+/* ------------------------------------------------------------------ */
+
+.scene-switcher {
+  right: clamp(32px, 4.4vw, 70px);
+  bottom: clamp(96px, 12.5vh, 138px);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 13px 9px 15px;
+  border: 1px solid rgba(227, 233, 222, 0.13);
+  border-radius: 40px;
+  background: rgba(8, 14, 13, 0.3);
+  backdrop-filter: blur(16px) saturate(118%);
+  -webkit-backdrop-filter: blur(16px) saturate(118%);
+  pointer-events: auto;
+}
+
+body.scene-ready .scene-switcher {
+  transition-delay: 0.84s;
+}
+
+.switcher-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.switcher-label {
+  font-size: 8px;
+  letter-spacing: 0.24em;
+  color: rgba(224, 231, 219, 0.36);
+  text-transform: uppercase;
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+}
+
+.segment {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 22px;
+  background: transparent;
+  color: rgba(228, 234, 223, 0.52);
+  cursor: pointer;
+  transition:
+    color 0.35s ease,
+    background 0.35s ease,
+    border-color 0.35s ease;
+}
+
+.segment svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+
+.segment span {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  line-height: 1;
+}
+
+.segment:hover {
+  color: rgba(244, 238, 225, 0.9);
+  background: rgba(255, 245, 226, 0.05);
+}
+
+.segment.is-active {
+  color: #f4dcae;
+  border-color: rgba(224, 193, 148, 0.34);
+  background: rgba(86, 66, 38, 0.32);
+}
+
+.segment:focus-visible {
+  outline: 1px solid var(--warm);
+  outline-offset: 2px;
+}
+
+.switcher-rule {
+  width: 1px;
+  height: 22px;
+  background: rgba(227, 233, 222, 0.14);
+}
+
+/* ------------------------------------------------------------------ */
+/* Immersive mode                                                     */
+/* ------------------------------------------------------------------ */
+
+.immersive-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 34px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transform: translateX(-50%) translateY(10px);
+  padding: 7px 13px;
+  border: 1px solid rgba(227, 233, 222, 0.12);
+  border-radius: 24px;
+  background: rgba(8, 14, 13, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: rgba(231, 236, 225, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.immersive-key {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(227, 233, 222, 0.24);
+  border-radius: 4px;
+  font-family: var(--serif-en);
+  font-size: 10px;
+  color: rgba(240, 232, 214, 0.75);
+}
+
+body.immersive .hud,
+body.immersive .scene-switcher,
+body.immersive .atmosphere {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.immersive .immersive-hint {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+body.immersive #canvas-host {
+  cursor: crosshair;
+}
+
+/* Hide the cursor too while the scene is idle in immersive mode. */
+body.immersive.idle #canvas-host {
+  cursor: none;
+}
+
+/* ------------------------------------------------------------------ */
 /* Controls                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -384,9 +546,7 @@ body.scene-ready .location {
   align-items: center;
   gap: 11px;
   pointer-events: none;
-}
-
-.control-button {
+}.control-button {
   position: relative;
   display: grid;
   place-items: center;
@@ -469,7 +629,6 @@ body.scene-ready .location {
 }
 
 .icon-sound-on,
-.icon-sun,
 .icon-collapse {
   position: absolute;
   opacity: 0;
@@ -477,14 +636,12 @@ body.scene-ready .location {
 }
 
 body.sound-on #sound-toggle .icon-sound-off,
-body.night-mode #night-toggle .icon-moon,
 body.is-fullscreen #fullscreen-toggle .icon-expand {
   opacity: 0;
   transform: scale(0.8) rotate(12deg);
 }
 
 body.sound-on #sound-toggle .icon-sound-on,
-body.night-mode #night-toggle .icon-sun,
 body.is-fullscreen #fullscreen-toggle .icon-collapse {
   opacity: 1;
   transform: scale(1) rotate(0);
@@ -802,7 +959,7 @@ body.scene-ready #loader {
     letter-spacing: 0.16em;
   }
 
-  .eyebrow span {
+  .eyebrow > span:first-child {
     width: 18px;
   }
 
@@ -834,6 +991,27 @@ body.scene-ready #loader {
     transform: translateY(-50%) !important;
     flex-direction: column;
     gap: 9px;
+  }
+
+  .scene-switcher {
+    left: 22px;
+    right: 22px;
+    bottom: 132px;
+    justify-content: center;
+    gap: 10px;
+    padding: 8px 11px;
+  }
+
+  .switcher-label {
+    display: none;
+  }
+
+  .segment {
+    padding: 6px 9px 6px 8px;
+  }
+
+  .segment span {
+    font-size: 9px;
   }
 
   .control-button {
