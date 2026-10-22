@@ -1,6 +1,7 @@
-# 林间灯暖 · Mistwood Cabin
+<img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/df11f17e-5ae0-48b0-8485-0ed62b9f4c2c" /># 林间灯暖 · Mistwood Cabin
 
 > 一个纯程序化的 Three.js 湖畔木屋场景 —— 森林深处、薄雾、一盏灯，以及可自由切换的光线与天气。
+> 体验地址（略有改动）：https://forestcabinbyds1017.vercel.app/
 
 没有外部模型、贴图或 HDR 素材。木屋、湖泊、码头、松林、地被、材质、天空与炊烟全部由代码在浏览器里生成，打开即可运行，无需构建。（场景准备和渲染会在载入时进行 一开始会有略微卡顿感）
 
